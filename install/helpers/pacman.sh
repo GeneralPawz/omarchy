@@ -1,25 +1,32 @@
-# Replace offline-install repositories with online defaults during finalization.
-# Refreshes preserve the installed ARM configuration instead of using a template.
-pacman_write_repository_config() {
-  local channel=$1 config=$2 mirrorlist=$3
-  local defaults="$OMARCHY_PATH/default/pacman"
+# Pacman repository templates. Every platform has a pacman.conf and mirrorlist
+# for each channel it offers, copied into place whole, as x86's always were:
+# x86's in default/pacman, each ARM platform's in a directory named for it.
+# Sourcing this file only defines functions; it never changes the system.
 
-  if [[ $channel != "stable" && $channel != "rc" && $channel != "edge" ]]; then
-    echo "Error: Invalid channel '$channel'. Must be one of: stable, rc, edge" >&2
-    return 1
-  fi
+# The directory holding <platform>'s pacman-<channel>.conf and
+# mirrorlist-<channel>. A channel without both files isn't offered there.
+omarchy_pacman_templates() {
+  case ${1:-} in
+    x86) echo "$OMARCHY_PATH/default/pacman" ;;
+    aarch64 | aarch64-apple) echo "$OMARCHY_PATH/default/pacman/$1" ;;
+    *)
+      echo "Error: Unknown platform '${1:-}'." >&2
+      return 1
+      ;;
+  esac
+}
 
-  if [[ $(uname -m) == "aarch64" ]]; then
-    cp -f "$defaults/pacman-aarch64.conf" "$config" || return 1
-    cp -f "$defaults/mirrorlist-aarch64" "$mirrorlist" || return 1
-
-    # Only edge publishes an aarch64 Omarchy repository. Offline stable/RC
-    # installs retain ALARM without silently opting into an experimental channel.
-    if [[ $channel == "edge" ]]; then
-      printf "\n[omarchy]\nServer = https://pkgs.omarchy.org/edge/\$arch\n" >>"$config" || return 1
-    fi
-  else
-    cp -f "$defaults/pacman-$channel.conf" "$config" || return 1
-    cp -f "$defaults/mirrorlist-$channel" "$mirrorlist" || return 1
-  fi
+# The channel a machine takes when none is named: stable, except on aarch64.
+# Omarchy publishes aarch64 packages on edge alone so far, and the stable and rc
+# packages there are the release line, which has no aarch64 support, so ARM
+# platforms have edge templates only until a release does.
+omarchy_pacman_default_channel() {
+  case ${1:-} in
+    x86) echo stable ;;
+    aarch64 | aarch64-apple) echo edge ;;
+    *)
+      echo "Error: Unknown platform '${1:-}'." >&2
+      return 1
+      ;;
+  esac
 }
